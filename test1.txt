@@ -1,1 +1,14 @@
-0
+Service is running
+Checking for possible inputs
+Checking for possible inputs
+Checking for possible inputs
+Checking for possible inputs
+Checking for possible inputs
+Checking for possible inputs
+Checking for possible inputs
+Checking for possible inputs
+Checking for possible inputs
+Checking for possible inputs
+Checking for possible inputs
+Checking for possible inputs
+service has stopped

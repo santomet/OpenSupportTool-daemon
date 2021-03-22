@@ -149,16 +149,18 @@ class Daemon:
 
 class OSTDaemon(Daemon):
     def run(self):
-        self.i = 0
-        with open('test1.txt', 'w') as f:
-            f.write(str(self.i))
+        f = open('test1.txt', 'w')
+        f.write("Service is running\n")
+        f.close()
         while True:
-            f.write(str("\n Checking for possible inputs"))
-            time.sleep(20)
+            f = open('test1.txt', 'a+')
+            f.write("Checking for possible inputs\n")
+            f.close()
+            time.sleep(2)
 
     def quit(self):
-        with open('test2.txt', 'w') as f:
-            f.write(str(self.i))
+        with open('test1.txt', 'a+') as f:
+            f.write("service has stopped\n")
 
 
 daemon = OSTDaemon()
