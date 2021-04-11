@@ -1,173 +1,162 @@
-# From "A simple unix/linux daemon in Python" by Sander Marechal See http://stackoverflow.com/a/473702/1422096 and
-# http://web.archive.org/web/20131017130434/http://www.jejik.com/articles/2007/02/a_simple_unix_linux_daemon_in_python/
-#
-# Modified to add quit() that allows to run some code before closing the daemon
-# See http://stackoverflow.com/a/40423758/1422096
-#
-# Modified for Python 3 (see also: http://web.archive.org/web/20131017130434/http://www.jejik.com/files/examples
-# /daemon3x.py)
-#
-# Joseph Ernest, 20200507_1220
-# https://gist.github.com/josephernest/77fdb0012b72ebdf4c9d19d6256a1119
+import time
 
-import sys, os, time, atexit
-from signal import signal, SIGTERM
+import requests
+from typing import List, Optional
+from datetime import datetime
+import enum
+from pydantic import BaseModel, ValidationError, validator, Field, Json
+from requests import Response
+import json
+import subprocess
 
 
-class Daemon:
+def log_that(message: str):
+    print(message)
+
+
+datafile = open("data.json", "r")
+
+# DATAFILE .................................................
+try:
+    datajson = json.load(datafile)
+except ValueError as e:
+    log_that("No configuration file found, exiting")
+    exit(1)
+
+try:
+    token = datajson["token"]
+    server_protocol = datajson["server_protocol"]
+    server_domain_ip = datajson["server_domain_ip"]
+    server_port = datajson["server_port"]
+except ValueError as e:
+    log_that("The configuration file is not valid, exiting")
+    exit(1)
+# ...........................................................
+datafile.close()
+
+server_url = server_protocol + server_domain_ip + ":" + str(server_port) + "/agents/query/" + token
+
+
+class ConnectionTypeEnum(enum.IntEnum):
     """
-    A generic daemon class.
-    Usage: subclass the Daemon class and override the run() method
+        Types of connections:
+        SSH Tunnel = 0
+        WebRTC = 1 (Not implemented yet)
+        """
+    ssh_tunnel = 0
+    webrtc = 1  # Reserved TODO
+
+
+class ConnectionStateEnum(enum.IntEnum):
     """
-
-    def __init__(self, pidfile='/tmp/OSTDaemon.pid', stdin='/dev/null', stdout='/dev/null', stderr='/dev/null'):
-        self.stdin = stdin
-        self.stdout = stdout
-        self.stderr = stderr
-        self.pidfile = pidfile
-
-    def daemonize(self):
+        Connection states:
+        Disconnected - Finished and archived = 0
+        Requested = 1
+        Agent responded, Connection in progress = 2
+        Disconnect Has been requested = 3
         """
-        do the UNIX double-fork magic, see Stevens' "Advanced
-        Programming in the UNIX Environment" for details (ISBN 0201563177)
-        http://www.erlenstar.demon.co.uk/unix/faq_2.html#SEC16
-        """
-        try:
-            pid = os.fork()
-            if pid > 0:
-                # exit first parent
-                sys.exit(0)
-        except OSError as e:
-            sys.stderr.write("fork #1 failed: %d (%s)\n" % (e.errno, e.strerror))
-            sys.exit(1)
-
-        # decouple from parent environment
-        os.setsid()
-        os.umask(0)
-
-        # do second fork
-        try:
-            pid = os.fork()
-            if pid > 0:
-                # exit from second parent
-                sys.exit(0)
-        except OSError as e:
-            sys.stderr.write("fork #2 failed: %d (%s)\n" % (e.errno, e.strerror))
-            sys.exit(1)
-
-        # redirect standard file descriptors
-        sys.stdout.flush()
-        sys.stderr.flush()
-        si = open(os.devnull, 'r')
-        so = open(os.devnull, 'a+')
-        se = open(os.devnull, 'a+')
-        os.dup2(si.fileno(), sys.stdin.fileno())
-        os.dup2(so.fileno(), sys.stdout.fileno())
-        os.dup2(se.fileno(), sys.stderr.fileno())
-
-        atexit.register(self.onstop)
-        signal(SIGTERM, lambda signum, stack_frame: exit())
-
-        # write pidfile
-        pid = str(os.getpid())
-        open(self.pidfile, 'w+').write("%s\n" % pid)
-
-    def onstop(self):
-        self.quit()
-        os.remove(self.pidfile)
-
-    def start(self):
-        """
-        Start the daemon
-        """
-        # Check for a pidfile to see if the daemon already runs
-        try:
-            pf = open(self.pidfile, 'r')
-            pid = int(pf.read().strip())
-            pf.close()
-        except IOError:
-            pid = None
-
-        if pid:
-            message = "pidfile %s already exist. Daemon already running?\n"
-            sys.stderr.write(message % self.pidfile)
-            sys.exit(1)
-
-        # Start the daemon
-        self.daemonize()
-        self.run()
-
-    def stop(self):
-        """
-        Stop the daemon
-        """
-        # Get the pid from the pidfile
-        try:
-            pf = open(self.pidfile, 'r')
-            pid = int(pf.read().strip())
-            pf.close()
-        except IOError:
-            pid = None
-
-        if not pid:
-            message = "pidfile %s does not exist. Daemon not running?\n"
-            sys.stderr.write(message % self.pidfile)
-            return  # not an error in a restart
-
-        # Try killing the daemon process
-        try:
-            while 1:
-                os.kill(pid, SIGTERM)
-                time.sleep(0.1)
-        except OSError as err:
-            err = str(err)
-            if err.find("No such process") > 0:
-                if os.path.exists(self.pidfile):
-                    os.remove(self.pidfile)
-            else:
-                print(str(err))
-                sys.exit(1)
-
-    def restart(self):
-        """
-        Restart the daemon
-        """
-        self.stop()
-        self.start()
-
-    def run(self):
-        """
-        You should override this method when you subclass Daemon. It will be called after the process has been
-        daemonized by start() or restart().
-        """
-
-    def quit(self):
-        """
-        You should override this method when you subclass Daemon. It will be called before the process is stopped.
-        """
+    disconnected = 0
+    requested = 1
+    connected = 2  # this means that the agent acknowledges connection
+    disconnect_requested = 3  # this means that agent is requested to close the connectio
 
 
-class OSTDaemon(Daemon):
-    def run(self):
-        f = open('test1.txt', 'w')
-        f.write("Service is running\n")
-        f.close()
-        while True:
-            f = open('test1.txt', 'a+')
-            f.write("Checking for possible inputs\n")
-            f.close()
-            time.sleep(2)
+def create_ssh_tunnel(tun: dict):
+    port_to_tunnel: int = tun["port_to_tunnel"]
+    timeout_time: datetime = tun["timeout_time"]
+    temporaray_pubkey: str = tun["temporary_pubkey_for_agent_ssh"]
+    domain_ip: str = tun["domain_ip"]
+    temporary_tunnel_privkey: str = tun["temporary_tunnel_privkey"]
+    reverse_port: int = tun["reverse_port"]
+    remote_ssh_port: int = tun["remote_ssh_port"]
 
-    def quit(self):
-        with open('test1.txt', 'a+') as f:
-            f.write("service has stopped\n")
+    if len(domain_ip) < 1:
+        domain_ip = server_domain_ip
+
+    for t in datajson["tunnels"]:
+        if t["id"] == tun["id"]:
+            newone = False
 
 
-daemon = OSTDaemon()
+    log_that("Trying to create a tunnel to port {} with a reverse {} on {} ...".format(port_to_tunnel, reverse_port, domain_ip))
 
-if 'start' == sys.argv[1]:
-    daemon.start()
-elif 'stop' == sys.argv[1]:
-    daemon.stop()
-elif 'restart' == sys.argv[1]:
-    daemon.restart()
+   # datajson["tunnels"].append(tun)
+   # log_that("Appending tunnel to ")
+
+
+
+
+
+def destroy_ssh_tunnel(id: int):
+    pass
+
+
+def create_tunnel(tun: dict):
+    timeout_time: datetime = datetime.fromisoformat(tun["timeout_time"])
+    if timeout_time <= datetime.utcnow():
+        log_that("Tunnel already not valid")
+        #return
+
+    if tun["connection_type"] == ConnectionTypeEnum.ssh_tunnel:
+        create_ssh_tunnel(tun)
+
+
+def destroy_tunnel(id: int):
+    pass
+
+
+def parse_success_resp(resp: Response):
+    j: dict = resp.json()
+    keys = j.keys()
+    if "message" in keys and len(j["message"]) > 0:
+        log_that(j["message"])
+
+    if "tunnels_requesting_action" in keys and len(j["tunnels_requesting_action"]) > 0:
+        log_that("There are {} tunnels requesting action:".format(len(j["tunnels_requesting_action"])))
+        for tun in j["tunnels_requesting_action"]:
+            act_on_tunnel(tun)
+
+
+def act_on_tunnel(tun: dict):
+    log_that(tun)
+    type: ConnectionTypeEnum = tun["connection_type"]
+    state: ConnectionStateEnum = tun["connection_state"]
+    port_to_tunnel: int = tun["port_to_tunnel"]
+    timeout_time: datetime = tun["timeout_time"]
+    temporaray_pubkey: str = tun["temporary_pubkey_for_agent_ssh"]
+    domain_ip: str = tun["domain_ip"]
+    temporary_tunnel_privkey: str = tun["temporary_tunnel_privkey"]
+    reverse_port: int = tun["reverse_port"]
+    remote_ssh_port: int = tun["remote_ssh_port"]
+
+    remote_ssh_server: str = tun["remote_ssh_server"]
+    if len(remote_ssh_server) < 1:
+        remote_ssh_server = server_domain_ip
+    if state == ConnectionStateEnum.connected:
+        # first check what should we do:
+        log_that("Requesting connection that should already be connected, ignore")
+        return
+    elif state == ConnectionStateEnum.requested:
+        log_that("Requesting new connection, act upon that!")
+        create_tunnel(tun)
+
+
+def main():
+    # Our small local "db" consisting of Tunnels which are active
+    global datajson
+
+    try:
+        resp: Response = requests.get(server_url)
+        if resp.status_code == 200:
+            parse_success_resp(resp)
+    except ValueError as e:
+        log_that("Could not connect to server")
+
+    datafile = open("data.json", "w")
+    json.dump(datajson, datafile)
+    datafile.close()
+
+
+if __name__ == "__main__":
+    # execute only if run as a script
+    main()
