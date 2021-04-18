@@ -13,12 +13,14 @@ import signal
 import tempfile
 import TunnelSSH
 import Helpers
+import getpass
 
-
+user_name = getpass.getuser()
 ssh_known_hosts_path = os.path.expanduser("~") + "/.ssh/known_hosts"
 ssh_authorized_keys_path = os.path.expanduser("~") + "/.ssh/authorized_keys"
 
 datafile = open("data.json", "r")
+
 
 # DATAFILE .................................................
 try:
@@ -32,7 +34,8 @@ try:
     server_protocol = datajson["server_protocol"]
     server_domain_ip = datajson["server_domain_ip"]
     server_port = datajson["server_port"]
-    # TBD certificate
+    is_installed = datajson["is_installed"]
+    # TBD certificate?
     datafile.close()
     server_url = server_protocol + server_domain_ip + ":" + str(server_port)
 except ValueError as e:

@@ -58,6 +58,12 @@ def get_tunnel_changed_json(tunnel_id: int, new_state: ConnectionStateEnum):
         "new_state": int(new_state)
     }
 
+def get_install_json():
+    return {
+        "token": SettingsStorage.token,
+        "agent_user_name": SettingsStorage.user_name
+    }
+
 # Log
 def log_that(message: str):
     print(message)

@@ -11,6 +11,7 @@ To make it work the data.json file must have this structure:
   "server_domain_ip": "0.0.0.0",
   "server_port": 8000,
   "interval_seconds": 5,
+  "is_installed": false,
   "tunnels": []
 }
 ```

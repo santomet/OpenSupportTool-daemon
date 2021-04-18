@@ -83,6 +83,22 @@ def main():
 
     while True:  # Do this all the time
         try:
+            # First check if this is installed, if not, send the installation data
+            if not SettingsStorage.is_installed:
+                resp: Response = requests.post(SettingsStorage.server_url + "/agents/agent_install",
+                                               json=Helpers.get_install_json())
+                if resp.status_code == 200:
+                    SettingsStorage.is_installed = True
+                    SettingsStorage.datajson["is_installed"] = True
+                    Helpers.log_that("Successfully Installed!")
+                else:
+                    msg = ""
+                    if "detail" in resp.json().keys():
+                        msg = resp.json()["detail"]
+                    Helpers.log_that(
+                        "Error when trying to install the agent. Code {}, with message {}".format(str(resp.status_code), msg))
+
+
             # First check if we have any Tunnel that should be disconnected TBD
             destroy_expired_tunnels()
             Helpers.remove_expired_ssh_auth_keys()
