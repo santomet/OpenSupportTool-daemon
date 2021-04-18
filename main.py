@@ -14,6 +14,7 @@ import tempfile
 import TunnelSSH
 import Helpers
 import SettingsStorage
+import sys
 
 
 def create_tunnel(tun: dict):
@@ -116,10 +117,10 @@ def main():
         except Exception as e:
             Helpers.log_that("Could not connect to server " + str(e.args))
 
-        datafile = open("data.json", "w")
+        datafile = open(os.path.join(sys.path[0], "data.json"), "w")
         json.dump(SettingsStorage.datajson, datafile)
         datafile.close()
-        time.sleep(5)
+        time.sleep(SettingsStorage.interval_seconds)
 
 
 if __name__ == "__main__":

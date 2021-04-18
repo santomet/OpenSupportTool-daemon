@@ -14,12 +14,18 @@ import tempfile
 import TunnelSSH
 import Helpers
 import getpass
+import sys
 
 user_name = getpass.getuser()
 ssh_known_hosts_path = os.path.expanduser("~") + "/.ssh/known_hosts"
 ssh_authorized_keys_path = os.path.expanduser("~") + "/.ssh/authorized_keys"
 
-datafile = open("data.json", "r")
+# Create the files if do not exist
+open(ssh_known_hosts_path, "a").close()
+open(ssh_authorized_keys_path, "a").close()
+
+
+datafile = open(os.path.join(sys.path[0], "data.json"), "r")
 
 
 # DATAFILE .................................................
@@ -35,6 +41,7 @@ try:
     server_domain_ip = datajson["server_domain_ip"]
     server_port = datajson["server_port"]
     is_installed = datajson["is_installed"]
+    interval_seconds = datajson["interval_seconds"]
     # TBD certificate?
     datafile.close()
     server_url = server_protocol + server_domain_ip + ":" + str(server_port)
