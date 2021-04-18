@@ -8,153 +8,102 @@ from pydantic import BaseModel, ValidationError, validator, Field, Json
 from requests import Response
 import json
 import subprocess
-
-
-def log_that(message: str):
-    print(message)
-
-
-datafile = open("data.json", "r")
-
-# DATAFILE .................................................
-try:
-    datajson = json.load(datafile)
-except ValueError as e:
-    log_that("No configuration file found, exiting")
-    exit(1)
-
-try:
-    token = datajson["token"]
-    server_protocol = datajson["server_protocol"]
-    server_domain_ip = datajson["server_domain_ip"]
-    server_port = datajson["server_port"]
-except ValueError as e:
-    log_that("The configuration file is not valid, exiting")
-    exit(1)
-# ...........................................................
-datafile.close()
-
-server_url = server_protocol + server_domain_ip + ":" + str(server_port) + "/agents/query/" + token
-
-
-class ConnectionTypeEnum(enum.IntEnum):
-    """
-        Types of connections:
-        SSH Tunnel = 0
-        WebRTC = 1 (Not implemented yet)
-        """
-    ssh_tunnel = 0
-    webrtc = 1  # Reserved TODO
-
-
-class ConnectionStateEnum(enum.IntEnum):
-    """
-        Connection states:
-        Disconnected - Finished and archived = 0
-        Requested = 1
-        Agent responded, Connection in progress = 2
-        Disconnect Has been requested = 3
-        """
-    disconnected = 0
-    requested = 1
-    connected = 2  # this means that the agent acknowledges connection
-    disconnect_requested = 3  # this means that agent is requested to close the connectio
-
-
-def create_ssh_tunnel(tun: dict):
-    port_to_tunnel: int = tun["port_to_tunnel"]
-    timeout_time: datetime = tun["timeout_time"]
-    temporaray_pubkey: str = tun["temporary_pubkey_for_agent_ssh"]
-    domain_ip: str = tun["domain_ip"]
-    temporary_tunnel_privkey: str = tun["temporary_tunnel_privkey"]
-    reverse_port: int = tun["reverse_port"]
-    remote_ssh_port: int = tun["remote_ssh_port"]
-
-    if len(domain_ip) < 1:
-        domain_ip = server_domain_ip
-
-    for t in datajson["tunnels"]:
-        if t["id"] == tun["id"]:
-            newone = False
-
-
-    log_that("Trying to create a tunnel to port {} with a reverse {} on {} ...".format(port_to_tunnel, reverse_port, domain_ip))
-
-   # datajson["tunnels"].append(tun)
-   # log_that("Appending tunnel to ")
-
-
-
-
-
-def destroy_ssh_tunnel(id: int):
-    pass
+import os
+import signal
+import tempfile
+import TunnelSSH
+import Helpers
+import SettingsStorage
 
 
 def create_tunnel(tun: dict):
     timeout_time: datetime = datetime.fromisoformat(tun["timeout_time"])
     if timeout_time <= datetime.utcnow():
-        log_that("Tunnel already not valid")
-        #return
+        Helpers.log_that("Tunnel already not valid")
+        return
 
-    if tun["connection_type"] == ConnectionTypeEnum.ssh_tunnel:
-        create_ssh_tunnel(tun)
+    if tun["connection_type"] == Helpers.ConnectionTypeEnum.ssh_tunnel:
+        TunnelSSH.create_ssh_tunnel(tun)
 
 
-def destroy_tunnel(id: int):
-    pass
+def destroy_tunnel(tun: dict):
+    if tun["connection_type"] == Helpers.ConnectionTypeEnum.ssh_tunnel:
+        TunnelSSH.destroy_ssh_tunnel(tun)
+
+
+def destroy_expired_tunnels():
+    for tun in SettingsStorage.datajson["tunnels"]:
+        timeout_time: datetime = datetime.fromisoformat(tun["timeout_time"])
+        if timeout_time <= datetime.utcnow():
+            Helpers.log_that("A tunnel has expired, destroy")
+            destroy_tunnel(tun)
+
+
+def act_on_tunnel(tun: dict):
+    Helpers.log_that(tun)
+    tunnel_id: int = tun["id"]
+    type: Helpers.ConnectionTypeEnum = tun["connection_type"]
+    state: Helpers.ConnectionStateEnum = tun["connection_state"]
+    port_to_tunnel: int = tun["port_to_tunnel"]
+    timeout_time: datetime = tun["timeout_time"]
+    temporaray_pubkey: str = tun["temporary_pubkey_for_agent_ssh"]
+    remote_ssh_server: str = tun["remote_ssh_server"]
+    remote_ssh_fingerprint: str = tun["remote_ssh_fingerprint"]
+    remote_ssh_username: str = tun["remote_ssh_fingerprint"]
+    reverse_port: int = tun["reverse_port"]
+    remote_ssh_port: int = tun["remote_ssh_port"]
+    temporary_tunnel_privkey: str = tun["temporary_tunnel_privkey"]
+
+    if state == Helpers.ConnectionStateEnum.connected:
+        # first check what should we do:
+        Helpers.log_that("Requesting connection that should already be connected, ignore")
+        return
+    elif state == Helpers.ConnectionStateEnum.requested:
+        Helpers.log_that("Requesting new connection, act upon that!")
+        create_tunnel(tun)
+    elif state == Helpers.ConnectionStateEnum.disconnect_requested:
+        Helpers.log_that("Requesting to destroy the connection id {}".format(tunnel_id))
+        destroy_tunnel(tun)
 
 
 def parse_success_resp(resp: Response):
     j: dict = resp.json()
     keys = j.keys()
     if "message" in keys and len(j["message"]) > 0:
-        log_that(j["message"])
+        Helpers.log_that(j["message"])
 
     if "tunnels_requesting_action" in keys and len(j["tunnels_requesting_action"]) > 0:
-        log_that("There are {} tunnels requesting action:".format(len(j["tunnels_requesting_action"])))
+        Helpers.log_that("There are {} tunnels requesting action:".format(len(j["tunnels_requesting_action"])))
         for tun in j["tunnels_requesting_action"]:
             act_on_tunnel(tun)
 
 
-def act_on_tunnel(tun: dict):
-    log_that(tun)
-    type: ConnectionTypeEnum = tun["connection_type"]
-    state: ConnectionStateEnum = tun["connection_state"]
-    port_to_tunnel: int = tun["port_to_tunnel"]
-    timeout_time: datetime = tun["timeout_time"]
-    temporaray_pubkey: str = tun["temporary_pubkey_for_agent_ssh"]
-    domain_ip: str = tun["domain_ip"]
-    temporary_tunnel_privkey: str = tun["temporary_tunnel_privkey"]
-    reverse_port: int = tun["reverse_port"]
-    remote_ssh_port: int = tun["remote_ssh_port"]
-
-    remote_ssh_server: str = tun["remote_ssh_server"]
-    if len(remote_ssh_server) < 1:
-        remote_ssh_server = server_domain_ip
-    if state == ConnectionStateEnum.connected:
-        # first check what should we do:
-        log_that("Requesting connection that should already be connected, ignore")
-        return
-    elif state == ConnectionStateEnum.requested:
-        log_that("Requesting new connection, act upon that!")
-        create_tunnel(tun)
-
-
 def main():
     # Our small local "db" consisting of Tunnels which are active
-    global datajson
 
-    try:
-        resp: Response = requests.get(server_url)
-        if resp.status_code == 200:
-            parse_success_resp(resp)
-    except ValueError as e:
-        log_that("Could not connect to server")
+    while True:  # Do this all the time
+        try:
+            # First check if we have any Tunnel that should be disconnected TBD
+            destroy_expired_tunnels()
+            Helpers.remove_expired_ssh_auth_keys()
+            resp: Response = requests.post(SettingsStorage.server_url + "/agents/query", json=Helpers.get_query_json())
+            if resp.status_code == 200:
+                parse_success_resp(resp)
+            else:
+                msg = ""
+                if "detail" in resp.json().keys():
+                    msg = resp.json()["detail"]
+                Helpers.log_that(
+                    "Error when querying the API. Code {}, with message {}".format(str(resp.status_code), msg))
+        except ValueError as e:
+            Helpers.log_that("Could not process some value" + str(e.args))
+        except Exception as e:
+            Helpers.log_that("Could not connect to server " + str(e.args))
 
-    datafile = open("data.json", "w")
-    json.dump(datajson, datafile)
-    datafile.close()
+        datafile = open("data.json", "w")
+        json.dump(SettingsStorage.datajson, datafile)
+        datafile.close()
+        time.sleep(5)
 
 
 if __name__ == "__main__":
