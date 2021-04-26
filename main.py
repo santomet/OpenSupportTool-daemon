@@ -17,6 +17,7 @@ import SettingsStorage
 import sys
 
 
+
 def create_tunnel(tun: dict):
     timeout_time: datetime = datetime.fromisoformat(tun["timeout_time"])
     if timeout_time <= datetime.utcnow():
@@ -86,7 +87,7 @@ def main():
         try:
             # First check if this is installed, if not, send the installation data
             if not SettingsStorage.is_installed:
-                resp: Response = requests.post(SettingsStorage.server_url + "/agents/agent_install",
+                resp: Response = Helpers.ReqSession.post(SettingsStorage.server_url + "/agents/agent_install",
                                                json=Helpers.get_install_json())
                 if resp.status_code == 200:
                     SettingsStorage.is_installed = True
@@ -103,7 +104,7 @@ def main():
             # First check if we have any Tunnel that should be disconnected TBD
             destroy_expired_tunnels()
             Helpers.remove_expired_ssh_auth_keys()
-            resp: Response = requests.post(SettingsStorage.server_url + "/agents/query", json=Helpers.get_query_json())
+            resp: Response = Helpers.ReqSession.post(SettingsStorage.server_url + "/agents/query", json=Helpers.get_query_json())
             if resp.status_code == 200:
                 parse_success_resp(resp)
             else:

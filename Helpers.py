@@ -17,6 +17,8 @@ import SettingsStorage
 import re
 import psutil
 
+ReqSession = requests.session()
+
 # Enums -----------------------------------------------------
 
 class ConnectionTypeEnum(enum.IntEnum):
@@ -55,7 +57,8 @@ def get_tunnel_changed_json(tunnel_id: int, new_state: ConnectionStateEnum):
     return {
         "token": SettingsStorage.token,
         "tunnel_id": tunnel_id,
-        "new_state": int(new_state)
+        "new_state": int(new_state),
+        "remote_ssh_server": SettingsStorage.datajson["server_domain_ip"]
     }
 
 def get_install_json():

@@ -62,7 +62,7 @@ def create_ssh_tunnel(tun: dict):
         # Adding the tunnel so we can remember
         SettingsStorage.datajson["tunnels"].append(tun)
         # Send the confirmation to the API:
-        resp: Response = requests.post(SettingsStorage.server_url + "/agents/tunnel_changed", json=Helpers.get_tunnel_changed_json(tunnel_id, Helpers.ConnectionStateEnum.connected))
+        resp: Response = Helpers.ReqSession.post(SettingsStorage.server_url + "/agents/tunnel_changed", json=Helpers.get_tunnel_changed_json(tunnel_id, Helpers.ConnectionStateEnum.connected))
         if resp.status_code == 200:
             Helpers.log_that("API now knows that the tunnel is connected")
         else:
@@ -105,7 +105,7 @@ def destroy_ssh_tunnel(tun: dict):
             Helpers.log_that("Process ID not in the structure :O")
 
     SettingsStorage.datajson["tunnels"].remove(tun)
-    resp: Response = requests.post(
+    resp: Response = Helpers.ReqSession.post(
         SettingsStorage.server_url + "/agents/tunnel_changed", json=Helpers.get_tunnel_changed_json(tun["id"], Helpers.ConnectionStateEnum.disconnected))
 
     if resp.status_code == 200:
