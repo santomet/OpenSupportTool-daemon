@@ -165,10 +165,10 @@ def remove_particular_ssh_auth_key(pubkey: str):
         f.close()
 
 
-def set_ssh_auth_key(timeout: datetime, pubkey: str):
+def set_ssh_auth_key(timeout: str, pubkey: str):
 
     # create the comment for auth_keys identification
-    comment = "timeout:{0}".format(timeout.isoformat())
+    comment = "timeout:{0}".format(timeout)
 
     # create file if does not exist
     f = open(SettingsStorage.ssh_authorized_keys_path, mode="a")

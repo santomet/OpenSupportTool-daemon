@@ -1,1 +1,1 @@
-{"token": "343247394faedbda3f507da578f9de61b6856b46fd27491dcdcea3273f1a094a25af3c3077657ea0c0b3d7976a", "server_protocol": "http://", "server_domain_ip": "172.22.14.99", "server_port": 8000, "interval_seconds": 5, "is_installed": true, "tunnels": []}
+{"token": "811121b2eb78d040e17985c1ee3db9caa6bbedc004478e1603291d225d18af014ae9d6d2dd1798f9bcec01ac1c", "server_protocol": "https://", "server_domain_ip": "ost.s2.dopi.ci", "server_port": 62231, "interval_seconds": 5, "is_installed": true, "tunnels": []}

@@ -18,7 +18,7 @@ import SettingsStorage
 def create_ssh_tunnel(tun: dict):
     tunnel_id: int = tun["id"]
     port_to_tunnel: int = tun["port_to_tunnel"]
-    timeout_time: datetime = tun["timeout_time"]
+    timeout_time: str = tun["timeout_time"]
     temporaray_pubkey_to_accept: str = tun["temporary_pubkey_for_agent_ssh"]
     remote_ssh_server: str = tun["remote_ssh_server"]
     reverse_port: int = tun["reverse_port"]
