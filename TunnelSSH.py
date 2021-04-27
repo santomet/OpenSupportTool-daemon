@@ -96,7 +96,11 @@ def destroy_ssh_tunnel(tun: dict):
     except KeyError as e:
             Helpers.log_that("Process ID not in the structure :O")
 
-    SettingsStorage.datajson["tunnels"].remove(tun)
+    try:
+        SettingsStorage.datajson["tunnels"].remove(tun)
+    except KeyError as e:
+        Helpers.log_that("We have no information about such tunnel")
+
     resp: Response = Helpers.ReqSession.post(
         SettingsStorage.server_url + "/agents/tunnel_changed", json=Helpers.get_tunnel_changed_json(tun["id"], Helpers.ConnectionStateEnum.disconnected))
 
